@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验数据分析报告 - 生成式AI可解释性</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); padding: 24px; margin-bottom: 24px; }
+        .code-block { background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 6px; font-family: monospace; font-size: 14px; overflow-x: auto; margin-top: 12px; margin-bottom: 12px;}
+        h2 { color: #1e3a8a; font-weight: bold; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 16px; margin-top: 32px;}
+        .highlight-box { background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; margin: 16px 0; border-radius: 0 4px 4px 0;}
+    </style>
+</head>
+<body class="text-gray-800 pb-20">
+
+    <!-- 顶部标题 -->
+    <header class="bg-blue-800 text-white py-12 shadow-md">
+        <div class="max-w-5xl mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-bold mb-4"><i class="fa-solid fa-chart-line mr-3"></i>生成式AI可解释性在学习中的影响</h1>
+            <p class="text-blue-100 text-lg">50份实验测试数据分析报告与可视化解读</p>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-6 mt-[-30px]">
+        
+        <!-- 理论依据与业务目的 -->
+        <div class="card relative z-10">
+            <h2 class="mt-0"><i class="fa-solid fa-book-open text-blue-500 mr-2"></i>1. 理论依据与业务目的</h2>
+            <p class="mb-3"><strong>研究假设：</strong> 生成式AI的“高可解释性”（如展示推理过程、术语解释、置信度等）能够显著降低学习者的认知负荷，促进其对复杂知识的深度理解。</p>
+            <p class="mb-3"><strong>业务目的：</strong> 通过A/B测试（A组为普通黑盒AI，B组为高可解释性AI），对比两组用户在学习前后的<strong>概念图（Concept Map）变化</strong>，用数据验证高可解释性UI的实际教育价值。</p>
+            <div class="highlight-box">
+                <p><strong>核心评估指标：</strong></p>
+                <ul class="list-disc pl-6 mt-2 space-y-1 text-sm">
+                    <li><strong>节点增量 (Node Growth)</strong> = 后测概念数量 - 前测概念数量 （反映知识广度的扩展）</li>
+                    <li><strong>连线增量 (Edge Growth)</strong> = 后测关系数量 - 前测关系数量 （反映知识深度的联结，是深度学习的关键标志）</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 分析步骤与代码 -->
+        <div class="card">
+            <h2><i class="fa-solid fa-laptop-code text-blue-500 mr-2"></i>2. 数据分析步骤 (AI 协同)</h2>
+            <p class="text-sm text-gray-600 mb-4">本次数据分析使用了 Python 的 Pandas 和 SciPy 库，并结合 AI 提示词快速生成分析代码。</p>
+            
+            <h3 class="font-bold text-lg text-gray-700 mt-4">步骤 2.1: 独立样本 T 检验</h3>
+            <p class="text-sm mt-2"><strong>AI 提示词：</strong> <em>"请使用 scipy.stats 对 A 组和 B 组的 node_growth 和 edge_growth 分别进行独立样本 t 检验。输出 t 值和 p 值..."</em></p>
+            <div class="code-block">
+# 对节点增量进行 T 检验
+t_stat_node, p_val_node = stats.ttest_ind(group_a['node_growth'], group_b['node_growth'])
+# Node Growth T-test: t = -9.9093, p = 2.7220e-13
+
+# 对关系连线增量进行 T 检验
+t_stat_edge, p_val_edge = stats.ttest_ind(group_a['edge_growth'], group_b['edge_growth'])
+# Edge Growth T-test: t = -6.3515, p = 6.7064e-08
+            </div>
+
+            <h3 class="font-bold text-lg text-gray-700 mt-6">步骤 2.2: 数据可视化</h3>
+            <p class="text-sm mt-2"><strong>AI 提示词：</strong> <em>"请使用 seaborn 绘制两个箱线图，分别比较 A 组和 B 组在节点增量和连线增量上的分布差异..."</em></p>
+            <div class="code-block">
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+sns.boxplot(x='group_type', y='node_growth', data=df_clean, ax=axes[0])
+sns.boxplot(x='group_type', y='edge_growth', data=df_clean, ax=axes[1])
+plt.savefig('analysis_charts.png')
+            </div>
+        </div>
+
+        <!-- 可视化图表与解读 -->
+        <div class="card">
+            <h2><i class="fa-solid fa-chart-pie text-blue-500 mr-2"></i>3. 可视化图表与解读</h2>
+            
+            <!-- 插入 Python 生成的图表 -->
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 text-center">
+                <img src="analysis_charts.png" alt="A/B组数据对比箱线图" class="max-w-full h-auto mx-auto rounded shadow-sm">
+                <p class="text-xs text-gray-500 mt-2">图 1: A组(控制组)与B组(高可解释性组)在概念图增量上的箱线图分布</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="bg-blue-50 p-5 rounded-lg border border-blue-100">
+                    <h3 class="font-bold text-blue-800 mb-2">📊 图表解读：节点增量</h3>
+                    <p class="text-sm leading-relaxed text-gray-700">
+                        从左侧箱线图可以看出，B组（实验组）的节点增量中位数（约6.0）明显高于A组（约3.0）。A组的数据分布较为集中且偏低，而B组整体分布更高。
+                        <br><br>
+                        <strong>统计学意义：</strong> T检验结果 (t = -9.91, p < 0.001) 表明，这种差异具有极显著的统计学意义。
+                    </p>
+                </div>
+                <div class="bg-indigo-50 p-5 rounded-lg border border-indigo-100">
+                    <h3 class="font-bold text-indigo-800 mb-2">📊 图表解读：连线增量</h3>
+                    <p class="text-sm leading-relaxed text-gray-700">
+                        从右侧箱线图可以看出，反映深度学习的“连线增量”指标上，B组的中位数（约7.0）同样远超A组（约3.0）。
+                        <br><br>
+                        <strong>统计学意义：</strong> T检验结果 (t = -6.35, p < 0.001) 表明，B组在构建复杂概念关系方面的能力提升显著优于A组。
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 最终分析与结论 -->
+        <div class="card">
+            <h2><i class="fa-solid fa-flag-checkered text-blue-500 mr-2"></i>4. 最终分析结论</h2>
+            <div class="bg-green-50 border-l-4 border-green-500 p-5 rounded-r-lg">
+                <p class="text-gray-800 leading-relaxed">
+                    综合以上数据分析过程，我们可以得出明确的结论：
+                </p>
+                <ul class="list-decimal pl-6 mt-3 space-y-2 text-gray-700">
+                    <li><strong>高可解释性促进知识广度：</strong> 带有推理过程和术语解释的 AI（B组），帮助学习者在学习后能够回忆并列举出显著更多的专业概念（节点增量 p < 0.001）。</li>
+                    <li><strong>高可解释性驱动深度学习：</strong> B组学习者在构建概念间的网络关系（连线增量）上表现出压倒性优势。这表明透明的 AI 生成过程降低了认知负荷，使学生有余力去理解概念之间的深层逻辑联系，而不仅仅是死记硬背单一术语。</li>
+                    <li><strong>业务建议：</strong> 在未来的教育类 AI 产品设计中，应将“生成透明度”、“术语辅助理解”和“置信度评估”作为标配功能，以真正发挥 AI 作为“认知脚手架”的教育价值。</li>
+                </ul>
+            </div>
+        </div>
+
+    </main>
+
+</body>
+</html>
