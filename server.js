@@ -120,6 +120,10 @@ app.post('/api/chat', async (req, res) => {
         }
 
         // 调用 ECNU API
+        console.log(`[API Request] URL: ${process.env.ECNU_BASE_URL}/chat/completions`);
+        console.log(`[API Request] Model: ${process.env.MODEL_NAME || "ecnu-plus"}`);
+        console.log(`[API Request] Key length: ${process.env.ECNU_API_KEY ? process.env.ECNU_API_KEY.length : 0}`);
+        
         const response = await axios.post(
             `${process.env.ECNU_BASE_URL}/chat/completions`,
             {
@@ -134,7 +138,8 @@ app.post('/api/chat', async (req, res) => {
                 headers: {
                     'Authorization': `Bearer ${process.env.ECNU_API_KEY}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                timeout: 60000 // 增加超时时间到 60 秒
             }
         );
 
@@ -167,9 +172,23 @@ app.post('/api/chat', async (req, res) => {
             [userId, 'assistant', typeof finalResponse === 'string' ? finalResponse : JSON.stringify(finalResponse)]);
 
         res.json({ reply: finalResponse });
-    } catch (error) {
-        console.error("API Error:", error.response ? error.response.data : error.message);
-        res.status(500).json({ error: 'Failed to communicate with LLM' });
+    } catch (apiError) {
+      console.error("====== 大模型 API 调用失败 ======");
+      if (apiError.response) {
+        // 请求已发出，但服务器响应的状态码不在 2xx 范围内
+        console.error("Status:", apiError.response.status);
+        console.error("Data:", JSON.stringify(apiError.response.data, null, 2));
+      } else if (apiError.request) {
+        // 请求已发出，但没有收到响应（网络问题、DNS问题等）
+        console.error("No response received. The request was:", apiError.request._currentUrl || "Unknown URL");
+        console.error("Message:", apiError.message);
+      } else {
+        // 在设置请求时发生了一些触发错误的事情
+        console.error("Error Message:", apiError.message);
+      }
+      console.error("=================================");
+      
+      return res.status(500).json({ error: 'AI 服务暂时不可用，请稍后再试。' });
     }
 });
 
