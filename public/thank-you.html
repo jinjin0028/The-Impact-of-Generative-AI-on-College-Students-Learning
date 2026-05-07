@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验完成</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center font-sans">
+    <div class="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full border border-gray-200 text-center">
+        <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="fa-solid fa-check text-green-600 text-3xl"></i>
+        </div>
+        <h1 class="text-2xl font-bold text-gray-800">实验完成！</h1>
+        <p class="text-gray-500 mt-3 text-sm leading-relaxed">非常感谢您参与本次“生成式AI可解释性”学习实验。</p>
+        <p class="text-gray-500 mt-2 text-sm">您的学习数据和概念图已成功记录，请关闭此页面或退出系统。</p>
+        <button onclick="logout()" class="mt-8 bg-gray-800 text-white py-2 px-6 rounded hover:bg-gray-900 transition-colors">
+            退出账号
+        </button>
+    </div>
+    <script>
+        function logout() {
+            localStorage.removeItem('user');
+            window.location.href = '/';
+        }
+    </script>
+</body>
+</html>

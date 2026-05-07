@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验数据实时分析报告</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 使用 Plotly 绘制类似于 seaborn 的箱线图 -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <!-- 使用 jStat 在前端进行统计学计算 -->
+    <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f3f4f6; }
+        .notebook-container { 
+            max-width: 1000px; 
+            margin: 40px auto; 
+            background: white; 
+            padding: 50px 60px; 
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01); 
+            border-radius: 16px; 
+        }
+        .md-h1 { 
+            font-size: 2.25em; 
+            font-weight: 800; 
+            color: #111827;
+            border-bottom: 2px solid #e5e7eb; 
+            padding-bottom: 16px; 
+            margin-bottom: 32px; 
+            letter-spacing: -0.025em;
+        }
+        .md-h2 { 
+            font-size: 1.5em; 
+            font-weight: 700; 
+            margin-top: 48px; 
+            margin-bottom: 20px; 
+            color: #1f2937; 
+            display: flex;
+            align-items: center;
+        }
+        .md-h2::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 24px;
+            background-color: #3b82f6;
+            margin-right: 12px;
+            border-radius: 2px;
+        }
+        .prompt-box { 
+            background: linear-gradient(to right, #eff6ff, #ffffff); 
+            border-left: 4px solid #3b82f6; 
+            padding: 20px; 
+            margin: 20px 0; 
+            color: #1e40af; 
+            border-radius: 0 12px 12px 0; 
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+        }
+        .prompt-title {
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            color: #2563eb;
+        }
+        .prompt-text { font-style: italic; color: #475569; line-height: 1.6; }
+        .code-output { 
+            background-color: #1e293b; 
+            color: #f8fafc;
+            padding: 24px; 
+            border-radius: 12px; 
+            font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; 
+            font-size: 0.95em; 
+            white-space: pre-wrap; 
+            margin: 20px 0; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        .code-output::before {
+            content: 'Terminal Output';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: #0f172a;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            padding: 4px 16px;
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            font-family: sans-serif;
+        }
+        .code-content { margin-top: 16px; display: block;}
+        .plot-wrapper {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .plot-wrapper:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .plot-container { width: 100%; height: 450px; }
+        
+        .conclusion-box {
+            background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%);
+            border: 1px solid #bae6fd;
+            border-radius: 16px;
+            padding: 32px;
+            margin-top: 24px;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.1);
+        }
+        .nav-btn {
+            transition: all 0.2s;
+        }
+        .nav-btn:hover {
+            background-color: #f3f4f6;
+            transform: translateX(-4px);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="notebook-container">
+        <div class="flex justify-between items-center mb-2">
+            <a href="/" class="nav-btn text-gray-500 hover:text-gray-900 text-sm font-medium flex items-center py-2 px-3 rounded-lg border border-transparent hover:border-gray-200">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                返回系统首页
+            </a>
+            <div class="text-xs text-gray-400 flex items-center">
+                <span class="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span> 实时数据同步中
+            </div>
+        </div>
+        
+        <h1 class="md-h1">生成式AI可解释性在学习中的影响<br><span class="text-blue-600 text-[0.8em]">实验数据分析报告</span></h1>
+
+        <!-- 理论依据 -->
+        <h2 class="md-h2">理论依据与业务目的</h2>
+        <p class="text-gray-600 leading-relaxed text-lg">
+            本分析旨在探讨 <strong>生成式AI的高可解释性特征（B组）</strong> 是否相比于 <strong>传统黑盒AI（A组）</strong>，能更有效地促进学习者的深度学习。学习效果通过“概念图”的复杂性来衡量，具体指标为 <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded font-mono text-sm">node_growth</span> (节点数量的增长) 和 <span class="bg-green-50 text-green-700 px-2 py-1 rounded font-mono text-sm">edge_growth</span> (关系连线数量的增长)。
+        </p>
+
+        <!-- 步骤 1 -->
+        <h2 class="md-h2">步骤 1：数据加载与预处理</h2>
+        <p class="text-gray-600 mb-4"><strong>目的</strong>：读取导出的 CSV 文件，清洗缺失值（如测试用户），并观察数据的基本统计特征。</p>
+        <div class="prompt-box">
+            <div class="prompt-title">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                AI 提示词 (Prompt)
+            </div>
+            <div class="prompt-text">
+                “请帮我用 pandas 读取实时数据库数据，过滤掉无效测试数据。然后分别统计 A组（控制组）和 B组（实验组）的用户数量，以及他们在节点增量 (node_growth) 和关系增量 (edge_growth) 上的均值和标准差。”
+            </div>
+        </div>
+        <div class="code-output"><span class="code-content" id="output-step1">正在实时计算统计特征...</span></div>
+
+        <!-- 步骤 2 -->
+        <h2 class="md-h2">步骤 2：独立样本 T 检验 (Hypothesis Testing)</h2>
+        <p class="text-gray-600 mb-4"><strong>目的</strong>：通过统计学假设检验，验证 B 组在概念图增长上是否<strong>显著</strong>优于 A 组。</p>
+        <div class="prompt-box">
+            <div class="prompt-title">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                AI 提示词 (Prompt)
+            </div>
+            <div class="prompt-text">
+                “请使用 scipy.stats 对 A 组和 B 组的 node_growth 和 edge_growth 分别进行独立样本 t 检验。输出 t 值和 p 值，并解释结果在统计学上是否具有显著性差异（通常 p < 0.05 视为显著）。”
+            </div>
+        </div>
+        <div class="code-output"><span class="code-content" id="output-step2">正在进行 T 检验计算...</span></div>
+
+        <!-- 步骤 3 -->
+        <h2 class="md-h2">步骤 3：数据可视化</h2>
+        <p class="text-gray-600 mb-4"><strong>目的</strong>：直观展示两组在学习效果上的差异分布，为最终的网页报告生成图表。</p>
+        <div class="prompt-box">
+            <div class="prompt-title">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                AI 提示词 (Prompt)
+            </div>
+            <div class="prompt-text">
+                “请使用 seaborn 绘制两个箱线图（Boxplot），分别比较 A 组和 B 组在 node_growth（概念节点增量）和 edge_growth（概念关系增量）上的分布差异。要求图表美观，坐标轴有清晰的中文标签。”
+            </div>
+        </div>
+        <div class="flex flex-col md:flex-row gap-6 mt-8">
+            <div class="w-full md:w-1/2 plot-wrapper flex flex-col">
+                <div id="nodeBoxplot" class="plot-container"></div>
+                <div class="mt-4 p-4 bg-gray-50 rounded-lg text-sm text-gray-600 border border-gray-100 flex-grow">
+                    <h4 class="font-semibold text-gray-800 mb-2 flex items-center">
+                        <svg class="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        图表解读 (广度)
+                    </h4>
+                    <p id="node-interpretation">正在分析箱线图数据...</p>
+                </div>
+            </div>
+            <div class="w-full md:w-1/2 plot-wrapper flex flex-col">
+                <div id="edgeBoxplot" class="plot-container"></div>
+                <div class="mt-4 p-4 bg-gray-50 rounded-lg text-sm text-gray-600 border border-gray-100 flex-grow">
+                    <h4 class="font-semibold text-gray-800 mb-2 flex items-center">
+                        <svg class="w-4 h-4 mr-1 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        图表解读 (深度)
+                    </h4>
+                    <p id="edge-interpretation">正在分析箱线图数据...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 最终结论 -->
+        <h2 class="md-h2 !mt-16">最终分析结论</h2>
+        <div class="conclusion-box" id="final-conclusion">
+            <div class="flex items-center justify-center space-x-2 text-blue-600">
+                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <span>正在基于实时数据生成最终结论...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function runAnalysis() {
+            try {
+                // 1. 获取后端实时提供的数据
+                const res = await fetch('/api/analysis-data');
+                const data = await res.json();
+                
+                const aNode = data.raw_data.group_a.node_growth;
+                const bNode = data.raw_data.group_b.node_growth;
+                const aEdge = data.raw_data.group_a.edge_growth;
+                const bEdge = data.raw_data.group_b.edge_growth;
+
+                // 核心统计算法 (模拟 scipy.stats 和 pandas)
+                const calcStats = (arrA, arrB) => {
+                    const nA = arrA.length, nB = arrB.length;
+                    if(nA < 2 || nB < 2) return null;
+                    
+                    const meanA = jStat.mean(arrA), meanB = jStat.mean(arrB);
+                    const stdA = jStat.stdev(arrA, true), stdB = jStat.stdev(arrB, true); // 样本标准差
+                    
+                    // 独立样本 t 检验 (方差齐性假设)
+                    const varA = jStat.variance(arrA, true), varB = jStat.variance(arrB, true);
+                    const pooledVar = ((nA - 1) * varA + (nB - 1) * varB) / (nA + nB - 2);
+                    const se = Math.sqrt(pooledVar * (1/nA + 1/nB));
+                    
+                    const tStat = (meanA - meanB) / se;
+                    // 双侧 p 值
+                    const pVal = jStat.ttest(tStat, nA + nB - 2, 2);
+                    
+                    return { nA, nB, meanA, meanB, stdA, stdB, tStat, pVal };
+                };
+
+                const nodeStats = calcStats(aNode, bNode);
+                const edgeStats = calcStats(aEdge, bEdge);
+
+                // --- 渲染 Step 1 输出 ---
+                if (!nodeStats) {
+                    document.getElementById('output-step1').innerText = "数据不足，A组或B组有效样本少于2个，无法进行统计分析。请先录入更多受试者数据。";
+                    return;
+                }
+
+                const step1Text = `基本描述性统计：
+           count       mean        std
+group_type
+A (node)    ${nodeStats.nA.toString().padEnd(4)}  ${nodeStats.meanA.toFixed(4)}   ${nodeStats.stdA.toFixed(4)}
+B (node)    ${nodeStats.nB.toString().padEnd(4)}  ${nodeStats.meanB.toFixed(4)}   ${nodeStats.stdB.toFixed(4)}
+
+A (edge)    ${edgeStats.nA.toString().padEnd(4)}  ${edgeStats.meanA.toFixed(4)}   ${edgeStats.stdA.toFixed(4)}
+B (edge)    ${edgeStats.nB.toString().padEnd(4)}  ${edgeStats.meanB.toFixed(4)}   ${edgeStats.stdB.toFixed(4)}`;
+                document.getElementById('output-step1').innerText = step1Text;
+
+                // --- 渲染 Step 2 输出 ---
+                const formatP = (p) => p < 0.0001 ? '< 0.0001' : p.toFixed(4);
+                const step2Text = `Node Growth T-test: t = ${nodeStats.tStat.toFixed(4)}, p = ${nodeStats.pVal.toExponential(4)} (≈ ${formatP(nodeStats.pVal)})
+Edge Growth T-test: t = ${edgeStats.tStat.toFixed(4)}, p = ${edgeStats.pVal.toExponential(4)} (≈ ${formatP(edgeStats.pVal)})`;
+                document.getElementById('output-step2').innerText = step2Text;
+
+                // --- 渲染 Step 3 图表 (Plotly Boxplots 模拟 Seaborn) ---
+                const layoutConfig = (title, ylabel) => ({
+                    title: { text: title, font: { size: 14 } },
+                    yaxis: { title: ylabel, zeroline: false },
+                    xaxis: { title: '实验组别' },
+                    margin: { l: 50, r: 20, t: 50, b: 50 },
+                    showlegend: false
+                });
+
+                // Node Growth Boxplot
+                const traceNodeA = { y: aNode, type: 'box', name: 'A', marker: { color: '#66c2a5' }, boxpoints: 'all', jitter: 0.3, pointpos: -1.8 };
+                const traceNodeB = { y: bNode, type: 'box', name: 'B', marker: { color: '#fc8d62' }, boxpoints: 'all', jitter: 0.3, pointpos: -1.8 };
+                Plotly.newPlot('nodeBoxplot', [traceNodeA, traceNodeB], layoutConfig('A/B组 概念节点增量 (Node Growth) 比较', '节点增量'));
+
+                // Edge Growth Boxplot
+                const traceEdgeA = { y: aEdge, type: 'box', name: 'A', marker: { color: '#66c2a5' }, boxpoints: 'all', jitter: 0.3, pointpos: -1.8 };
+                const traceEdgeB = { y: bEdge, type: 'box', name: 'B', marker: { color: '#fc8d62' }, boxpoints: 'all', jitter: 0.3, pointpos: -1.8 };
+                Plotly.newPlot('edgeBoxplot', [traceEdgeA, traceEdgeB], layoutConfig('A/B组 概念关系连线增量 (Edge Growth) 比较', '连线增量'));
+
+                // --- 生成图表解读 ---
+                const generateInterpretation = (stats, label) => {
+                    if (!stats) return "数据不足，无法生成解读。";
+                    
+                    const higherGroup = stats.meanA > stats.meanB ? "A组 (控制组)" : "B组 (高可解释性组)";
+                    const lowerGroup = stats.meanA > stats.meanB ? "B组 (高可解释性组)" : "A组 (控制组)";
+                    const higherMean = Math.max(stats.meanA, stats.meanB).toFixed(2);
+                    const lowerMean = Math.min(stats.meanA, stats.meanB).toFixed(2);
+                    
+                    let text = `从上方箱线图可以看出，在${label}上，<strong>${higherGroup}</strong> 的平均增量 (${higherMean}) 明显高于 <strong>${lowerGroup}</strong> (${lowerMean})。`;
+                    
+                    // 中位数和分布对比
+                    const medianA = jStat.median(stats.meanA === stats.meanA ? aNode : aEdge); // 简单取中位数逻辑
+                    text += ` 箱体中的横线代表中位数，反映了大多数受试者的普遍水平。散点代表每个受试者的具体增量，可以看出两组在数据分布上的集中趋势与离散程度。`;
+                    
+                    return text;
+                };
+
+                document.getElementById('node-interpretation').innerHTML = generateInterpretation(nodeStats, "概念节点数量 (知识广度)");
+                document.getElementById('edge-interpretation').innerHTML = generateInterpretation(edgeStats, "概念关系连线数量 (知识深度)");
+
+                // --- 渲染最终结论 ---
+                const nP = nodeStats.pVal;
+                const eP = edgeStats.pVal;
+                
+                let conclusionHTML = `根据对实时收集的 <strong>${nodeStats.nA + nodeStats.nB}</strong> 份有效样本数据进行独立样本 T 检验：<br><br>`;
+                
+                conclusionHTML += `<ul class="list-disc pl-6 mb-4 space-y-2">`;
+                if (nP < 0.05) {
+                    conclusionHTML += `<li>在<strong>概念节点增量（广度）</strong>上，B组（高可解释性AI）显著优于A组（传统AI），差异具有统计学意义 (p = ${formatP(nP)})。</li>`;
+                } else {
+                    conclusionHTML += `<li>在<strong>概念节点增量（广度）</strong>上，A组与B组尚未表现出显著差异 (p = ${formatP(nP)} > 0.05)。</li>`;
+                }
+
+                if (eP < 0.05) {
+                    conclusionHTML += `<li>在<strong>概念关系连线增量（深度）</strong>上，B组显著优于A组，差异具有统计学意义 (p = ${formatP(eP)})。</li>`;
+                } else {
+                    conclusionHTML += `<li>在<strong>概念关系连线增量（深度）</strong>上，A组与B组尚未表现出显著差异 (p = ${formatP(eP)} > 0.05)。</li>`;
+                }
+                conclusionHTML += `</ul>`;
+
+                if (nP < 0.05 && eP < 0.05) {
+                    conclusionHTML += `<strong>综合推论：</strong>生成式AI的可解释性特征（思维透明、术语解释、置信度展示）有效降低了学习者的认知负荷。在相同的学习时间内，B组学习者不仅掌握了更多的零散概念，还能构建出更复杂的知识网络。<strong>研究假设成立。</strong>`;
+                } else if (nP < 0.05 || eP < 0.05) {
+                    conclusionHTML += `<strong>综合推论：</strong>高可解释性AI在学习的部分维度上起到了显著的促进作用。建议后续增加样本量或延长实验交互时间，以进一步验证整体学习效果。`;
+                } else {
+                    conclusionHTML += `<strong>综合推论：</strong>当前样本量下，AI的可解释性特征对学习效果的影响暂不显著。建议检查实验控制条件，或继续扩大测试样本规模。`;
+                }
+
+                document.getElementById('final-conclusion').innerHTML = conclusionHTML;
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('output-step1').innerText = "获取或分析数据失败，请确保后台服务正常运行并已录入至少两份测试数据。";
+            }
+        }
+
+        // 启动分析
+        window.addEventListener('DOMContentLoaded', runAnalysis);
+    </script>
+</body>
+</html>

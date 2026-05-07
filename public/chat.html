@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生成式AI可解释性实验 - 学习对话</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .tooltip-trigger {
+            border-bottom: 2px dashed #3b82f6;
+            cursor: help;
+            position: relative;
+            color: #2563eb;
+            font-weight: 500;
+        }
+        .tooltip-trigger .tooltip-content {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.2s;
+            background-color: #1e293b;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 8px 12px;
+            position: absolute;
+            z-index: 10;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: max-content;
+            max-width: 250px;
+            font-size: 0.875rem;
+            font-weight: normal;
+            line-height: 1.4;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .tooltip-trigger:hover .tooltip-content {
+            visibility: visible;
+            opacity: 1;
+        }
+        [x-cloak] { display: none !important; }
+        
+        .chat-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 h-screen flex flex-col font-sans">
+
+    <!-- 导航栏 -->
+    <nav class="bg-white shadow-sm border-b border-gray-200 z-50 flex-shrink-0">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-graduation-cap text-blue-600 text-xl"></i>
+                <span class="font-bold text-lg text-gray-800">AI辅助学习系统</span>
+            </div>
+            <div class="flex items-center space-x-3">
+                <span id="groupBadge" class="text-xs font-bold px-3 py-1.5 rounded-full border shadow-sm flex items-center">
+                    <!-- 动态注入组别标签 -->
+                </span>
+                <span class="text-sm text-gray-600 font-medium" id="userNameDisplay"></span>
+                <button onclick="finishLearning()" class="text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 px-3 py-1.5 rounded-full ml-3 font-medium transition-colors">
+                    完成学习，进入后测 <i class="fa-solid fa-arrow-right text-xs ml-1"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主体聊天容器 -->
+    <main class="flex-grow overflow-y-auto chat-container p-4 pb-32" id="chatContainer">
+        <!-- 欢迎消息 -->
+        <div class="max-w-4xl mx-auto flex mb-6">
+            <div class="mr-3 flex-shrink-0">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-md border-2 border-white">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-5 py-4 max-w-2xl shadow-sm">
+                <p class="text-gray-800 leading-relaxed" id="welcomeMsg">
+                    你好！我是你的AI学习助手。你可以向我提问关于心理学、教育学等任何你想了解的概念。
+                </p>
+            </div>
+        </div>
+        <!-- 对话将在这里动态插入 -->
+    </main>
+
+    <!-- 底部输入框 -->
+    <div class="bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex-shrink-0">
+        <form id="chatForm" class="max-w-4xl mx-auto flex items-center relative">
+            <input type="text" id="userInput" required placeholder="输入你想了解的概念，或提出问题..." class="w-full bg-gray-50 border border-gray-300 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-100 rounded-full py-3.5 pl-5 pr-16 outline-none transition-all shadow-inner text-sm">
+            <button type="submit" id="sendBtn" class="absolute right-2 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-700 shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <i class="fa-solid fa-paper-plane text-sm -ml-0.5"></i>
+            </button>
+        </form>
+    </div>
+
+    <!-- AI 回答模板 (供JS调用) -->
+    <template id="userMsgTemplate">
+        <div class="max-w-4xl mx-auto flex justify-end mb-6 w-full">
+            <div class="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-5 py-3.5 max-w-2xl shadow-sm">
+                <p class="leading-relaxed msg-content"></p>
+            </div>
+            <div class="ml-3 flex-shrink-0">
+                <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold border border-gray-300 shadow-sm">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script>
+        let user = null;
+
+        // 初始化加载
+        window.addEventListener('DOMContentLoaded', () => {
+            const userStr = localStorage.getItem('user');
+            if (!userStr) {
+                window.location.href = '/';
+                return;
+            }
+            user = JSON.parse(userStr);
+            
+            // 设置界面信息
+            document.getElementById('userNameDisplay').innerText = user.username;
+            const badge = document.getElementById('groupBadge');
+            if (user.group_type === 'A') {
+                badge.className = 'bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1.5 rounded-full border border-gray-200 shadow-sm flex items-center';
+                badge.innerHTML = '<i class="fa-solid fa-desktop mr-1.5"></i> 控制组 (A组)';
+            } else {
+                badge.className = 'bg-indigo-100 text-indigo-800 text-xs font-bold px-3 py-1.5 rounded-full border border-indigo-200 shadow-sm flex items-center';
+                badge.innerHTML = '<i class="fa-solid fa-flask mr-1.5"></i> 实验组 (B组)';
+                document.getElementById('welcomeMsg').innerText = "你好！我是你的高可解释性AI学习助手。我会向你展示我的推理过程、提供术语解释并标注置信度，帮助你更好地理解。请问今天想学点什么？";
+            }
+        });
+
+        // 完成学习，进入后测
+        function finishLearning() {
+            window.location.href = '/concept-map.html?stage=post';
+        }
+
+        // 发送消息
+        document.getElementById('chatForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+            if (!message || !user) return;
+
+            // 禁用输入框
+            input.value = '';
+            input.disabled = true;
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+
+            // 渲染用户消息
+            appendUserMessage(message);
+
+            // 添加加载中的机器人气泡
+            const loadingId = 'loading-' + Date.now();
+            appendLoadingMessage(loadingId);
+            scrollToBottom();
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: user.id,
+                        message: message,
+                        groupType: user.group_type
+                    })
+                });
+
+                const data = await response.json();
+                
+                // 移除加载气泡
+                document.getElementById(loadingId).remove();
+
+                if (data.error) {
+                    appendErrorMsg('服务器请求失败，请稍后再试。');
+                } else {
+                    // 根据组别渲染AI回复
+                    if (user.group_type === 'A') {
+                        appendAiMessageGroupA(data.reply);
+                    } else {
+                        appendAiMessageGroupB(data.reply);
+                    }
+                }
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById(loadingId).remove();
+                appendErrorMsg('网络连接异常。');
+            } finally {
+                input.disabled = false;
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<i class="fa-solid fa-paper-plane text-sm -ml-0.5"></i>';
+                input.focus();
+                scrollToBottom();
+            }
+        });
+
+        function appendUserMessage(text) {
+            const template = document.getElementById('userMsgTemplate').content.cloneNode(true);
+            template.querySelector('.msg-content').innerText = text;
+            document.getElementById('chatContainer').appendChild(template);
+        }
+
+        function appendLoadingMessage(id) {
+            const html = `
+            <div class="max-w-4xl mx-auto flex mb-6 w-full" id="${id}">
+                <div class="mr-3 flex-shrink-0">
+                    <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold border-2 border-white shadow-sm">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                </div>
+                <div class="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm flex items-center space-x-2">
+                    <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                    <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                    <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                </div>
+            </div>`;
+            document.getElementById('chatContainer').insertAdjacentHTML('beforeend', html);
+        }
+
+        function appendErrorMsg(text) {
+            const html = `
+            <div class="max-w-4xl mx-auto flex justify-center mb-6 w-full">
+                <span class="bg-red-50 text-red-500 text-xs px-3 py-1 rounded-full border border-red-200"><i class="fa-solid fa-triangle-exclamation mr-1"></i> ${text}</span>
+            </div>`;
+            document.getElementById('chatContainer').insertAdjacentHTML('beforeend', html);
+        }
+
+        // 渲染 A 组消息 (纯文本)
+        function appendAiMessageGroupA(text) {
+            // 将换行符转为 <br>，也可以引入 marked.js 来支持 markdown
+            const formattedText = String(text).replace(/\n/g, '<br>');
+            const html = `
+            <div class="max-w-4xl mx-auto flex mb-6 w-full">
+                <div class="mr-3 flex-shrink-0">
+                    <div class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-white font-bold shadow-md border-2 border-white">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                </div>
+                <div class="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-6 py-5 max-w-3xl shadow-sm w-full">
+                    <div class="text-gray-800 leading-relaxed space-y-3 text-sm">
+                        ${formattedText}
+                    </div>
+                </div>
+            </div>`;
+            document.getElementById('chatContainer').insertAdjacentHTML('beforeend', html);
+        }
+
+        // 渲染 B 组消息 (高可解释性)
+        function appendAiMessageGroupB(data) {
+            // 如果返回的不是对象，或者没有 final_answer，说明解析失败，回退到普通文本显示
+            if (typeof data !== 'object' || data === null || !data.final_answer) {
+                appendAiMessageGroupA(typeof data === 'string' ? data : JSON.stringify(data));
+                return;
+            }
+
+            // 处理术语替换 (添加 Tooltip)
+            let processedAnswer = String(data.final_answer).replace(/\n/g, '<br>');
+            if (data.glossary && typeof data.glossary === 'object') {
+                for (const [term, explanation] of Object.entries(data.glossary)) {
+                    if (!term || !explanation) continue;
+                    try {
+                        const regex = new RegExp(term, 'g');
+                        const tooltipHtml = `<span class="tooltip-trigger">${term}<span class="tooltip-content"><strong>${term}：</strong>${explanation}</span></span>`;
+                        processedAnswer = processedAnswer.replace(regex, tooltipHtml);
+                    } catch (e) {
+                        console.error('Regex error for term:', term);
+                    }
+                }
+            }
+
+            // 组装推理步骤 HTML
+            let reasoningStepsHtml = '';
+            if (data.reasoning_steps && data.reasoning_steps.length > 0) {
+                reasoningStepsHtml = `
+                    <ol class="list-decimal pl-5 space-y-1.5 mb-3 text-xs">
+                        ${data.reasoning_steps.map(step => `<li>${step}</li>`).join('')}
+                    </ol>
+                `;
+            }
+
+            // 组装引用 HTML
+            let refsHtml = '';
+            if (data.references && data.references.length > 0) {
+                refsHtml = `
+                    <div class="pt-2 border-t border-gray-100 text-xs text-gray-500">
+                        <strong>引用文献:</strong> <br>
+                        ${data.references.map(ref => `[${ref.id}] ${ref.source}`).join('<br>')}
+                    </div>
+                `;
+            }
+
+            // 组装局限性 HTML
+            let limitationsHtml = '';
+            if (data.limitations && data.limitations.length > 0) {
+                limitationsHtml = `
+                    <div class="mt-5 bg-orange-50 border border-orange-200 rounded-md p-3.5 flex items-start shadow-sm">
+                        <i class="fa-solid fa-triangle-exclamation text-orange-500 mt-0.5 mr-2.5 text-lg"></i>
+                        <div class="text-xs text-orange-800 leading-relaxed">
+                            <strong class="text-sm block mb-1">AI 认知局限提示：</strong> 
+                            ${data.limitations.join('<br>')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 唯一ID用于 alpine 组件状态
+            const componentId = 'alpine-comp-' + Date.now();
+
+            const html = `
+            <div class="max-w-4xl mx-auto flex mb-6 w-full" x-data="{ showReasoning: false }" id="${componentId}">
+                <div class="mr-3 flex-shrink-0">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-md border-2 border-white">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                </div>
+                
+                <div class="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-6 py-5 max-w-3xl shadow-sm w-full">
+                    
+                    <!-- 【维度 3】评估保真度: 置信度展示 -->
+                    <div class="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+                        <div class="flex items-center space-x-2 text-sm">
+                            <span class="flex items-center text-green-700 bg-green-50 px-2.5 py-1 rounded-md border border-green-200 font-medium">
+                                <i class="fa-solid fa-circle-check mr-1.5 text-green-500"></i>
+                                AI 置信度: ${data.confidence_label || 'High'} (${Math.round((data.confidence_score || 0.9)*100)}%)
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 【维度 1】生成透明性: 推理过程展示 -->
+                    <div class="mb-5 border border-indigo-100 rounded-lg bg-indigo-50/30 overflow-hidden transition-all duration-300">
+                        <button @click="showReasoning = !showReasoning" class="w-full flex items-center justify-between px-4 py-2.5 text-sm text-indigo-700 font-medium hover:bg-indigo-50 transition-colors focus:outline-none">
+                            <span class="flex items-center">
+                                <i class="fa-solid fa-magnifying-glass-chart mr-2 text-indigo-500"></i>
+                                查看 AI 是如何生成此回答的
+                            </span>
+                            <i class="fa-solid fa-chevron-down transition-transform duration-300" :class="showReasoning ? 'rotate-180' : ''"></i>
+                        </button>
+                        <div x-show="showReasoning" x-collapse x-cloak class="px-4 py-3 text-sm text-gray-600 border-t border-indigo-100 bg-white">
+                            <h4 class="font-bold text-gray-700 mb-2 text-xs">AI 推理链条 (Chain of Thought):</h4>
+                            ${reasoningStepsHtml}
+                            ${refsHtml}
+                        </div>
+                    </div>
+
+                    <!-- 核心回答内容 -->
+                    <div class="text-gray-800 leading-relaxed space-y-3 text-sm">
+                        ${processedAnswer}
+                    </div>
+
+                    <!-- 【维度 2】用户理解性: 交互式辅助理解按钮 -->
+                    <div class="mt-6 pt-4 border-t border-gray-100 flex flex-wrap gap-2.5">
+                        <span class="text-xs text-gray-400 w-full mb-1">进一步探索：</span>
+                        <button onclick="document.getElementById('userInput').value='请用生活中的例子解释刚才的概念'; document.getElementById('sendBtn').click();" class="flex items-center text-xs px-3 py-1.5 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-full transition-colors border border-yellow-200 shadow-sm">
+                            <i class="fa-solid fa-lightbulb mr-1.5"></i> 用生活例子解释
+                        </button>
+                        <button onclick="document.getElementById('userInput').value='请出几道测试题考考我对刚才概念的理解'; document.getElementById('sendBtn').click();" class="flex items-center text-xs px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 rounded-full transition-colors border border-green-200 shadow-sm">
+                            <i class="fa-solid fa-check-double mr-1.5"></i> 出题考考我
+                        </button>
+                    </div>
+
+                    <!-- 【维度 3】局限性 -->
+                    ${limitationsHtml}
+
+                </div>
+            </div>`;
+            
+            document.getElementById('chatContainer').insertAdjacentHTML('beforeend', html);
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('chatContainer');
+            container.scrollTop = container.scrollHeight;
+        }
+    </script>
+</body>
+</html>

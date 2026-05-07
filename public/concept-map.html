@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>绘制概念图</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 引入 vis-network 用于绘制关系图 -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style type="text/css">
+        #networkCanvas {
+            width: 100%;
+            height: 100%;
+            border: 1px solid #e5e7eb;
+            background-color: #f9fafb;
+            border-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-white h-screen flex flex-col font-sans">
+
+    <!-- 导航栏 -->
+    <nav class="bg-white shadow-sm border-b border-gray-200 z-50 flex-shrink-0">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-diagram-project text-blue-600 text-xl"></i>
+                <span class="font-bold text-lg text-gray-800" id="headerTitle">概念图评估</span>
+            </div>
+            <div class="flex items-center space-x-3 text-sm text-gray-600">
+                <span>用户: <strong id="userNameDisplay">...</strong></span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex flex-grow overflow-hidden max-w-7xl mx-auto w-full">
+        <!-- 左侧控制面板 -->
+        <div class="w-80 border-r border-gray-200 p-6 overflow-y-auto flex flex-col bg-gray-50">
+            <div class="mb-6">
+                <h2 class="text-xl font-bold text-gray-800" id="panelTitle">前测：绘制你已知的概念</h2>
+                <p class="text-sm text-gray-500 mt-2" id="panelDesc">请添加你所了解的心理学/教育学概念，并将它们相互连接。如果没有任何了解，可以直接点击最下方的提交按钮。</p>
+            </div>
+
+            <!-- 添加概念节点 -->
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+                <h3 class="font-bold text-gray-700 mb-3"><i class="fa-solid fa-circle-plus text-blue-500 mr-2"></i>1. 添加概念</h3>
+                <div class="flex space-x-2">
+                    <input type="text" id="nodeLabel" placeholder="如：工作记忆" class="flex-grow border border-gray-300 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                    <button onclick="addNode()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors">添加</button>
+                </div>
+            </div>
+
+            <!-- 添加关系连线 -->
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6 flex-grow">
+                <h3 class="font-bold text-gray-700 mb-3"><i class="fa-solid fa-link text-green-500 mr-2"></i>2. 连接概念</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">起点概念：</label>
+                        <select id="edgeFrom" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                            <option value="">-- 选择起点 --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">终点概念：</label>
+                        <select id="edgeTo" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                            <option value="">-- 选择终点 --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">关系描述 (可选)：</label>
+                        <input type="text" id="edgeLabel" placeholder="如：包含、影响、导致" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <button onclick="addEdge()" class="w-full bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors mt-2">创建连接</button>
+                </div>
+            </div>
+
+            <!-- 提交按钮 -->
+            <button onclick="submitConceptMap()" id="submitBtn" class="w-full bg-gray-800 hover:bg-gray-900 text-white py-3 rounded-lg font-bold shadow-md transition-colors mt-auto">
+                提交概念图并继续
+            </button>
+        </div>
+
+        <!-- 右侧画布 -->
+        <div class="flex-grow p-4">
+            <div id="networkCanvas"></div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let user = null;
+        let stage = 'pre'; // 默认前测
+        let nodes, edges, network;
+        let nodeIdCounter = 1;
+
+        // 初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            const userStr = localStorage.getItem('user');
+            if (!userStr) {
+                window.location.href = '/';
+                return;
+            }
+            user = JSON.parse(userStr);
+            document.getElementById('userNameDisplay').innerText = user.username;
+
+            // 获取 URL 参数确定是 pre 还是 post
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('stage') === 'post') {
+                stage = 'post';
+                document.getElementById('headerTitle').innerText = '学习后概念图评估';
+                document.getElementById('panelTitle').innerText = '后测：更新你的概念图';
+                document.getElementById('panelDesc').innerText = '经过刚才的学习，请重新绘制你所理解的概念及其相互关系。';
+                document.getElementById('submitBtn').innerText = '提交并完成实验';
+            }
+
+            initNetwork();
+        });
+
+        // 初始化 vis-network
+        function initNetwork() {
+            nodes = new vis.DataSet([]);
+            edges = new vis.DataSet([]);
+            
+            const container = document.getElementById('networkCanvas');
+            const data = { nodes: nodes, edges: edges };
+            const options = {
+                nodes: {
+                    shape: 'box',
+                    margin: 10,
+                    color: {
+                        background: '#eff6ff',
+                        border: '#3b82f6',
+                        highlight: { background: '#dbeafe', border: '#2563eb' }
+                    },
+                    font: { size: 16, color: '#1e3a8a' }
+                },
+                edges: {
+                    arrows: 'to',
+                    color: '#9ca3af',
+                    font: { size: 12, align: 'middle', color: '#4b5563', background: 'white' },
+                    smooth: { type: 'continuous' }
+                },
+                interaction: { hover: true },
+                physics: {
+                    enabled: true,
+                    barnesHut: { springLength: 150 }
+                }
+            };
+            network = new vis.Network(container, data, options);
+        }
+
+        // 添加节点
+        function addNode() {
+            const labelInput = document.getElementById('nodeLabel');
+            const label = labelInput.value.trim();
+            if (!label) return alert('请输入概念名称');
+
+            // 检查重复
+            const existingNodes = nodes.get({ filter: item => item.label === label });
+            if (existingNodes.length > 0) return alert('该概念已存在');
+
+            const id = nodeIdCounter++;
+            nodes.add({ id: id, label: label });
+            
+            // 更新下拉框
+            updateSelects(id, label);
+            
+            labelInput.value = '';
+        }
+
+        // 更新下拉菜单
+        function updateSelects(id, label) {
+            const fromSelect = document.getElementById('edgeFrom');
+            const toSelect = document.getElementById('edgeTo');
+            
+            const option1 = new Option(label, id);
+            const option2 = new Option(label, id);
+            
+            fromSelect.add(option1);
+            toSelect.add(option2);
+        }
+
+        // 添加连线
+        function addEdge() {
+            const from = document.getElementById('edgeFrom').value;
+            const to = document.getElementById('edgeTo').value;
+            const label = document.getElementById('edgeLabel').value.trim();
+
+            if (!from || !to) return alert('请选择起点和终点');
+            if (from === to) return alert('起点和终点不能相同');
+
+            edges.add({
+                from: parseInt(from),
+                to: parseInt(to),
+                label: label || undefined
+            });
+
+            document.getElementById('edgeLabel').value = '';
+        }
+
+        // 提交概念图
+        async function submitConceptMap() {
+            const allNodes = nodes.get();
+            const allEdges = edges.get();
+            const btn = document.getElementById('submitBtn');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>保存中...';
+
+            const payload = {
+                userId: user.id,
+                stage: stage,
+                nodeCount: allNodes.length,
+                edgeCount: allEdges.length,
+                mapData: { nodes: allNodes, edges: allEdges }
+            };
+
+            try {
+                const res = await fetch('/api/concept-map', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    if (stage === 'pre') {
+                        // 前测完成，进入聊天学习
+                        window.location.href = '/chat.html';
+                    } else {
+                        // 后测完成，进入感谢页面
+                        window.location.href = '/thank-you.html';
+                    }
+                } else {
+                    alert('保存失败: ' + data.error);
+                    btn.disabled = false;
+                    btn.innerText = '提交概念图并继续';
+                }
+            } catch (err) {
+                console.error(err);
+                alert('网络错误');
+                btn.disabled = false;
+                btn.innerText = '提交概念图并继续';
+            }
+        }
+    </script>
+</body>
+</html>
