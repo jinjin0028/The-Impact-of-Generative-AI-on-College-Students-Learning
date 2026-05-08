@@ -57,8 +57,10 @@
                 <thead class="bg-gray-50">
                     <tr>
                         <th scope="col" class="px-6 py-3 text-left whitespace-nowrap">ID</th>
+                        <th scope="col" class="px-6 py-3 text-left whitespace-nowrap">完成时间</th>
                         <th scope="col" class="px-6 py-3 text-left whitespace-nowrap">学号/昵称</th>
-                        <th scope="col" class="px-6 py-3 text-left whitespace-nowrap">组别</th>
+                        <th scope="col" class="px-6 py-3 text-center whitespace-nowrap">数据类型</th>
+                        <th scope="col" class="px-6 py-3 text-center whitespace-nowrap">组别</th>
                         <th scope="col" class="px-6 py-3 text-center border-l border-gray-200 whitespace-nowrap">前测节点</th>
                         <th scope="col" class="px-6 py-3 text-center whitespace-nowrap">后测节点</th>
                         <th scope="col" class="px-6 py-3 text-center bg-blue-50/50 whitespace-nowrap">节点增量</th>
@@ -107,13 +109,22 @@
                     const groupClass = row.group_type === 'A' ? 'group-a' : 'group-b';
                     const groupText = row.group_type === 'A' ? 'A (控制组)' : 'B (高可解释性)';
 
+                    const mockClass = row.is_mock ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700';
+                    const mockText = row.is_mock ? '模拟' : '真实';
+
+                    // 格式化时间戳
+                    const date = new Date(row.completed_at + 'Z'); // SQLite 返回的是 UTC 时间
+                    const formattedDate = date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+
                     const nodeGrowthPrefix = row.node_growth > 0 ? '+' : '';
                     const edgeGrowthPrefix = row.edge_growth > 0 ? '+' : '';
 
                     tr.innerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500">${row.user_id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-xs">${formattedDate}</td>
                         <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">${row.username}</td>
-                        <td class="px-6 py-4 whitespace-nowrap"><span class="${groupClass}">${groupText}</span></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center"><span class="px-2 py-1 text-xs rounded-full font-medium ${mockClass}">${mockText}</span></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center"><span class="${groupClass}">${groupText}</span></td>
                         
                         <td class="px-6 py-4 whitespace-nowrap text-center border-l border-gray-100">${row.pre_node_count}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-center">${row.post_node_count}</td>

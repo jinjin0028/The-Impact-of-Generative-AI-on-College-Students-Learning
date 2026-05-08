@@ -47,7 +47,69 @@ db.serialize(() => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(user_id) REFERENCES users(id)
     )`);
+
+    // 尝试添加 is_mock 字段 (如果已存在会静默失败，这样能保护历史数据)
+    db.run(`ALTER TABLE users ADD COLUMN is_mock INTEGER DEFAULT 0`, (err) => {
+        // 忽略错误，因为多次执行会导致 'duplicate column name' 错误，这符合预期
+    });
+
+    // 初始化 50 条模拟数据
+    seedMockData();
 });
+
+// 生成模拟数据函数
+function seedMockData() {
+    db.get(`SELECT COUNT(*) as count FROM users WHERE is_mock = 1`, [], (err, row) => {
+        if (err) return console.error(err);
+        if (row && row.count >= 50) return; // 已经有模拟数据了，跳过
+
+        console.log("正在生成 50 条模拟数据...");
+        const insertUser = db.prepare(`INSERT INTO users (username, group_type, is_mock, created_at) VALUES (?, ?, 1, datetime('now', ?))`);
+        const insertMap = db.prepare(`INSERT INTO concept_maps (user_id, stage, map_data, node_count, edge_count, created_at) VALUES (?, ?, '{}', ?, ?, datetime('now', ?))`);
+        
+        db.serialize(() => {
+            db.run('BEGIN TRANSACTION');
+            for (let i = 1; i <= 50; i++) {
+                const groupType = i % 2 === 0 ? 'A' : 'B';
+                const username = `mock_user_${i.toString().padStart(3, '0')}`;
+                // 模拟时间偏移，让时间戳看起来是过去的几天内生成的
+                const timeOffset = `-${Math.floor(Math.random() * 10)} days`;
+                
+                insertUser.run([username, groupType, timeOffset], function(err) {
+                    if (err) {
+                        // 可能是 unique constraint error，忽略
+                        return;
+                    }
+                    const userId = this.lastID;
+                    
+                    // A 组基准较低，增量较小；B 组基准相似，增量较大
+                    const preNode = Math.floor(Math.random() * 4) + 2; // 2~5
+                    const preEdge = Math.floor(Math.random() * 3) + 1; // 1~3
+                    
+                    let postNode, postEdge;
+                    if (groupType === 'A') {
+                        postNode = preNode + Math.floor(Math.random() * 3) + 1; // 增量 1~3
+                        postEdge = preEdge + Math.floor(Math.random() * 3) + 1; // 增量 1~3
+                    } else {
+                        postNode = preNode + Math.floor(Math.random() * 4) + 4; // 增量 4~7
+                        postEdge = preEdge + Math.floor(Math.random() * 4) + 4; // 增量 4~7
+                    }
+                    
+                    // 前测时间早于后测时间
+                    const preTimeOffset = timeOffset;
+                    const postTimeOffset = `-${Math.floor(Math.random() * 9)} days`; // 假设同一天或后一天完成
+
+                    insertMap.run([userId, 'pre', preNode, preEdge, preTimeOffset]);
+                    insertMap.run([userId, 'post', postNode, postEdge, postTimeOffset]);
+                });
+            }
+            db.run('COMMIT', (err) => {
+                if (err) console.error("模拟数据生成失败:", err);
+                else console.log("50 条模拟数据生成完毕！");
+            });
+        });
+    });
+}
 
 // 2. 路由：用户登录与分组分配
 app.post('/api/login', (req, res) => {
@@ -200,23 +262,26 @@ app.get('/api/export', (req, res) => {
             u.id as user_id, 
             u.username, 
             u.group_type,
-            MAX(CASE WHEN c.stage = 'pre' THEN c.node_count END) as pre_node_count,
-            MAX(CASE WHEN c.stage = 'post' THEN c.node_count END) as post_node_count,
-            MAX(CASE WHEN c.stage = 'pre' THEN c.edge_count END) as pre_edge_count,
-            MAX(CASE WHEN c.stage = 'post' THEN c.edge_count END) as post_edge_count,
-            (MAX(CASE WHEN c.stage = 'post' THEN c.node_count END) - MAX(CASE WHEN c.stage = 'pre' THEN c.node_count END)) as node_growth,
-            (MAX(CASE WHEN c.stage = 'post' THEN c.edge_count END) - MAX(CASE WHEN c.stage = 'pre' THEN c.edge_count END)) as edge_growth
+            COALESCE(u.is_mock, 0) as is_mock,
+            c_post.created_at as completed_at,
+            c_pre.node_count as pre_node_count,
+            c_post.node_count as post_node_count,
+            (c_post.node_count - c_pre.node_count) as node_growth,
+            c_pre.edge_count as pre_edge_count,
+            c_post.edge_count as post_edge_count,
+            (c_post.edge_count - c_pre.edge_count) as edge_growth
         FROM users u
-        LEFT JOIN concept_maps c ON u.id = c.user_id
-        GROUP BY u.id
-        ORDER BY u.id ASC
+        LEFT JOIN concept_maps c_pre ON u.id = c_pre.user_id AND c_pre.stage = 'pre'
+        LEFT JOIN concept_maps c_post ON u.id = c_post.user_id AND c_post.stage = 'post'
+        WHERE c_pre.id IS NOT NULL AND c_post.id IS NOT NULL
+        ORDER BY c_post.created_at DESC
     `;
 
     db.all(query, [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         
         try {
-            const fields = ['user_id', 'username', 'group_type', 'pre_node_count', 'post_node_count', 'node_growth', 'pre_edge_count', 'post_edge_count', 'edge_growth'];
+            const fields = ['user_id', 'username', 'group_type', 'is_mock', 'completed_at', 'pre_node_count', 'post_node_count', 'node_growth', 'pre_edge_count', 'post_edge_count', 'edge_growth'];
             const json2csvParser = new Parser({ fields });
             const csv = json2csvParser.parse(rows);
             
@@ -327,6 +392,8 @@ app.get('/api/data-details', (req, res) => {
       u.id as user_id,
       u.username,
       u.group_type,
+      COALESCE(u.is_mock, 0) as is_mock,
+      c_post.created_at as completed_at,
       c_pre.node_count as pre_node_count,
       c_post.node_count as post_node_count,
       (c_post.node_count - c_pre.node_count) as node_growth,
@@ -337,7 +404,7 @@ app.get('/api/data-details', (req, res) => {
     LEFT JOIN concept_maps c_pre ON u.id = c_pre.user_id AND c_pre.stage = 'pre'
     LEFT JOIN concept_maps c_post ON u.id = c_post.user_id AND c_post.stage = 'post'
     WHERE c_pre.id IS NOT NULL AND c_post.id IS NOT NULL
-    ORDER BY u.id DESC
+    ORDER BY c_post.created_at DESC
   `;
 
   db.all(query, [], (err, rows) => {
